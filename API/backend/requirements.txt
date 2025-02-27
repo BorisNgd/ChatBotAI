@@ -1,0 +1,17 @@
+requests
+fastapi
+uvicorn
+ollama
+python-dotenv
+motor
+pymongo
+pyjwt
+aiofiles
+aiohttp
+bcrypt
+gunicorn
+Jinja2
+pydantic
+redis
+uvloop
+websockets

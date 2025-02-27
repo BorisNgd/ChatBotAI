@@ -1,0 +1,87 @@
+
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: server_ai
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - app-network
+    tty: true
+    healthcheck:
+      test: ["CMD-SHELL", "ollama --version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1  # Nombre de GPUs à ajuster selon tes besoins
+              capabilities: [gpu]
+  
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_database
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: adminUser
+      MONGO_INITDB_ROOT_PASSWORD: adminPassword
+    env_file:
+      - .env
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - app-network
+    command: ["--auth", "--bind_ip_all"]
+    healthcheck:  
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test 
+      
+
+  chatbot:
+    build: ./backend
+    container_name: chatbot_fastapi
+    restart: always
+    env_file: 
+      - .env
+    networks:
+      - app-network
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app  # Montage pour développement
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+    - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000", "||", "exit", "1"]
+      interval: 30s
+      retries: 3
+
+networks:
+  app-network:
+    driver: bridge
+
+      
+
+volumes:
+  ollama-data:
+
+  mongo_data:
+    driver: local
+  mongo-config:
+    driver: local
